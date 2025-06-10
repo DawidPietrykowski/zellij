@@ -3781,17 +3781,16 @@ impl Row {
     }
     pub fn split_to_rows_of_length(&mut self, max_row_length: usize) -> Vec<Row> {
         let mut parts: Vec<Row> = vec![];
-        let mut current_part: VecDeque<TerminalCharacter> = VecDeque::new();
         let mut current_part_len = 0;
         let mut current_part_char_count = 0;
         while !self.columns.is_empty() {
             let mut appended = false;
             for character in &self.columns {
                 if current_part_len + character.width() > max_row_length {
-                    current_part.reserve(current_part_char_count);
-                    current_part.extend(self.columns.drain(..current_part_char_count));
-                    parts.push(Row::from_columns(current_part));
-                    current_part = VecDeque::new();
+                    let remaining = self.columns.split_off(current_part_char_count);
+                    let row_chars = std::mem::replace(&mut self.columns, remaining);
+                    parts.push(Row::from_columns(row_chars));
+
                     current_part_len = 0;
                     current_part_char_count = 0;
                     appended = true;
@@ -3801,9 +3800,7 @@ impl Row {
                 current_part_char_count += 1;
             }
             if !appended {
-                current_part.extend(self.columns.drain(..));
-                parts.push(Row::from_columns(current_part));
-                current_part = VecDeque::new();
+                parts.push(Row::from_columns(self.columns.split_off(0)));
             }
         }
         if !parts.is_empty() && self.is_canonical {
