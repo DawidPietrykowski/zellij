@@ -156,20 +156,27 @@ fn transfer_rows_from_lines_above_to_viewport(
         }
         if next_lines.is_empty() {
             match lines_above.pop_back() {
-                Some(next_line) => {
-                    let mut top_non_canonical_rows_in_dst = get_top_non_canonical_rows_2(viewport);
-                    lines_added_to_viewport -= top_non_canonical_rows_in_dst.len() as isize;
-                    next_lines.push_back(next_line);
-                    next_lines.append(&mut top_non_canonical_rows_in_dst);
-                    // next_lines.reserve(top_non_canonical_rows_in_dst.len());
-                    // for row in top_non_canonical_rows_in_dst.iter() {
-                    //     next_lines.push_front(row.clone());
-                    // }
-                    next_lines =
-                        Row::from_rows(next_lines.into()).split_to_rows_of_length(max_viewport_width).into();
-                    if next_lines.is_empty() {
-                        // no more lines at lines_above, the line we popped was probably empty
-                        break;
+                Some(mut next_line) => {
+                    let skip_resplitting = if let Some(first_viewport_line) = viewport.get(0) {
+                        first_viewport_line.is_canonical && next_line.is_canonical && next_line.width_cached() <= max_viewport_width
+                    } else {
+                        next_line.is_canonical && next_line.width_cached() <= max_viewport_width
+                    };
+                    if skip_resplitting {
+                        next_lines.push_back(next_line);
+                    } else {
+                        let mut top_non_canonical_rows_in_dst =
+                            get_top_non_canonical_rows_2(viewport);
+                        lines_added_to_viewport -= top_non_canonical_rows_in_dst.len() as isize;
+                        next_lines.push_back(next_line);
+                        next_lines.append(&mut top_non_canonical_rows_in_dst);
+                        next_lines = Row::from_rows(next_lines.into())
+                            .split_to_rows_of_length(max_viewport_width)
+                            .into();
+                        if next_lines.is_empty() {
+                            // no more lines at lines_above, the line we popped was probably empty
+                            break;
+                        }
                     }
                 },
                 None => break, // no more rows
@@ -227,19 +234,27 @@ fn transfer_rows_from_lines_below_to_viewport(
         let mut lines_pulled_from_viewport = 0;
         if next_lines.is_empty() {
             if !lines_below.is_empty() {
-                let mut top_non_canonical_rows_in_lines_below =
-                    get_top_non_canonical_rows(lines_below);
-                if !top_non_canonical_rows_in_lines_below.is_empty() {
-                    let mut canonical_line = get_viewport_bottom_canonical_row_and_wraps(viewport);
-                    lines_pulled_from_viewport += canonical_line.len();
-                    canonical_line.append(&mut top_non_canonical_rows_in_lines_below);
-                    next_lines =
-                        Row::from_rows(canonical_line.into()).split_to_rows_of_length(max_viewport_width);
-                } else {
-                    let canonical_row = get_top_canonical_row_and_wraps(lines_below);
-                    next_lines =
-                        Row::from_rows(canonical_row).split_to_rows_of_length(max_viewport_width);
-                }
+                // let line = lines_below.front_mut().unwrap();
+                // if (!line.is_canonical && line.width_cached() == max_viewport_width)
+                //     || (line.is_canonical && line.width_cached() < max_viewport_width)
+                // {
+                //     next_lines.push(lines_below.pop_front().unwrap());
+                // } else {
+                    let mut top_non_canonical_rows_in_lines_below =
+                        get_top_non_canonical_rows(lines_below);
+                    if !top_non_canonical_rows_in_lines_below.is_empty() {
+                        let mut canonical_line =
+                            get_viewport_bottom_canonical_row_and_wraps(viewport);
+                        lines_pulled_from_viewport += canonical_line.len();
+                        canonical_line.append(&mut top_non_canonical_rows_in_lines_below);
+                        next_lines = Row::from_rows(canonical_line.into())
+                            .split_to_rows_of_length(max_viewport_width);
+                    } else {
+                        let canonical_row = get_top_canonical_row_and_wraps(lines_below);
+                        next_lines = Row::from_rows(canonical_row)
+                            .split_to_rows_of_length(max_viewport_width);
+                    }
+                // }
             } else {
                 break; // no more rows
             }
