@@ -179,6 +179,12 @@ impl SearchResult {
     /// The tail are all the non-canonical lines below `row`, with `row` not necessarily being canonical itself.
     pub(crate) fn search_row(&self, mut ridx: usize, row: &Row, tail: &[&Row]) -> Vec<Selection> {
         let mut res = Vec::new();
+        // log::info!(
+        //     "search row: {:?} \n row:{:?}\n tail:{:#?}",
+        //     self.needle,
+        //     row.columns,
+        //     tail
+        // );
         if self.needle.is_empty() || row.columns.is_empty() {
             return res;
         }
@@ -277,6 +283,7 @@ impl SearchResult {
                 s.end.line.0 += 1;
             }
         }
+        // log::info!("returning: {:?}", res);
         res
     }
 
@@ -552,6 +559,97 @@ impl Grid {
 
         // We might loose the current selection, if we can't find anything
         let current_active_selection = self.search_results.active;
+
+        let mut tail: Vec<&Row> = vec![];
+        let mut first_line: Option<&Row> = None;
+        let mut found = None;
+        match dir {
+            SearchDirection::Down => {
+                for (id, line) in self.lines_below.iter().enumerate() {
+                    // println!("down search line {:#?}", line);
+                    // log::info!("down search line {:#?}", line);
+                    if !line.is_canonical {
+                        tail.push(&line);
+                    } else {
+                        if let Some(mut first_line) = first_line {
+                            // log::info!("down test line {:#?} tail {:#?}", first_line, tail);
+
+                            while !tail.is_empty() {
+                                if !self
+                                    .search_results
+                                    .search_row(0, first_line, &tail)
+                                    .is_empty()
+                                {
+                                    // log::info!("found {}", id - 1);
+                                    found = Some(id - 1);
+                                    break;
+                                }
+                                first_line = tail.remove(0);
+                            }
+                            if !self
+                                .search_results
+                                .search_row(0, first_line, &tail)
+                                .is_empty()
+                            {
+                                // log::info!("found {}", id - 1);
+                                found = Some(id - 1);
+                                break;
+                            }
+                        }
+                        // tail.clear();
+                        first_line = Some(line);
+                    }
+                }
+            },
+            SearchDirection::Up => {
+                for (id, mut line) in self.lines_above.iter().rev().enumerate() {
+                    // println!("up search line {:#?}", line);
+                    // log::info!("up search line {:#?}", line);
+                    if !line.is_canonical {
+                        tail.push(&line);
+                    } else {
+                        tail.reverse();
+                        // log::info!("up test line {:#?} tail {:#?}", line, tail);
+
+                        while !tail.is_empty() {
+                            if !self.search_results.search_row(0, line, &tail).is_empty() {
+                                // log::info!("found {}", id - 1);
+                                found = Some(id);
+                                break;
+                            }
+                            line = tail.remove(0);
+                        }
+                        if !self.search_results.search_row(0, line, &tail).is_empty() {
+                            // log::info!("found {}", id - 1);
+                            found = Some(id);
+                            break;
+                        }
+
+                        tail.clear();
+                    }
+                }
+            },
+        }
+
+        // println!("searching above: {} below: {} dir: {:?}", self.lines_above.len(), self.lines_below.len(), dir);
+        if let Some(found) = found {
+            // println!("found something: {}", found);
+            if found > 0 {
+                let needle = self.search_results.needle.clone();
+                self.search_results.needle = Vec::new();
+                for _ in 0..(found - 1) {
+                    match dir {
+                        SearchDirection::Up => self.scroll_up_one_line(),
+                        SearchDirection::Down => self.scroll_down_one_line(),
+                    };
+                }
+                self.search_results.needle = needle;
+            }
+        } else {
+            // println!("did not find");
+            return false;
+        }
+
         while !found_something && !self.search_reached_opposite_end(dir) {
             rows += 1;
             found_something = match dir {
