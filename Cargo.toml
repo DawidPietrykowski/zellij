@@ -28,6 +28,7 @@ names = { version = "0.14.0", default-features = false }
 nix = { workspace = true }
 suggest = { version = "0.4.0", default-features = false }
 thiserror = { workspace = true }
+criterion = "0.6.0"
 
 [dev-dependencies]
 insta = { version = "1.6.0", features = ["backtrace"] }
@@ -35,6 +36,10 @@ ssh2 = "0.9.1"
 rand = "0.8.0"
 regex = "1.8.1"
 vte = { workspace = true }
+
+[[bench]]
+name = "search"
+harness = false
 
 [workspace]
 members = [
